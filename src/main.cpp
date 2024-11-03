@@ -16,9 +16,9 @@ const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 0; 
 const int daylightOffset_sec = 3600; 
 
-const unsigned long webSerialInterval = 5000;
+const unsigned long serialDebugInterval = 5000;
 const unsigned long interval = 1000;
-unsigned long previousWebSerialMillis = 0;
+unsigned long previousSerialDebugMillis = 0;
 unsigned long previousMillis = 0;
 int buzzerState = 0;
 
@@ -108,18 +108,17 @@ void loop(){
     }
   }
 
-  serialDebug();
+  //serialDebug();
 }
 
 void serialDebug(){
-  if(millis() - previousWebSerialMillis >= webSerialInterval){
-    previousWebSerialMillis = millis();
+  if(millis() - previousSerialDebugMillis >= serialDebugInterval){
+    previousSerialDebugMillis = millis();
     Serial.print(sensorVal1);     Serial.println(" %");
     Serial.print(sensorVal2);     Serial.println(" %");
     Serial.print(sensorVal3);     Serial.println(" %");
     Serial.print(sensorVal4);     Serial.println(" %");
   }
-
 }
 
 int convertToPercent(int analogValue){
