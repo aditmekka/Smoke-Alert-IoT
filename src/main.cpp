@@ -7,6 +7,7 @@
 
 const int buzzerPin[] {5, 18, 19, 21};
 const int sensorPin[] {36, 39, 35, 33};
+const int LED_BUILTIN = 2;
 
 bool isInitBuzzerTest = false;
 int smokeThreshold = 20;
@@ -15,7 +16,9 @@ const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 0; 
 const int daylightOffset_sec = 3600; 
 
+const unsigned long webSerialInterval = 5000;
 const unsigned long interval = 1000;
+unsigned long previousWebSerialMillis = 0;
 unsigned long previousMillis = 0;
 int buzzerState = 0;
 
@@ -31,6 +34,7 @@ FirebaseConfig config;
 unsigned long sendDataPrevMillis = 0;
 bool signupOK = false; 
 
+//Prototype Function
 void buzzerTest();
 void sendSensorData();
 void handleFirebaseStreams();
@@ -38,14 +42,19 @@ void serialDebug();
 
 void setup(){
   Serial.begin(115200);
+  pinMode(LED_BUILTIN, OUTPUT);
 
   WiFi.begin(ssid, password);
-  Serial.println("Connecting to wifi");
+  Serial.print("Connecting to WiFi");
   while(WiFi.status() != WL_CONNECTED){
-    Serial.print("."); delay(300);
+    digitalWrite(LED_BUILTIN, LOW); Serial.print("."); delay(300);
   }
+  if(WiFi.status() == WL_CONNECTED){
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
   Serial.println();
-  Serial.print("Connected with IP");
+  Serial.print("Connected with IP: ");
   Serial.println(WiFi.localIP());
   Serial.println();
 
@@ -53,6 +62,7 @@ void setup(){
   config.database_url = DATABASE_URL;
   if(Firebase.signUp(&config, &auth, "", "")){
     Serial.println("signUp OK");
+    Serial.println();
     signupOK = true;
   }else{
     Serial.printf("%s\n", config.signer.signupError.message.c_str());
@@ -68,10 +78,8 @@ void setup(){
   if (!Firebase.RTDB.beginStream(&fbdo_s2, "/userInput/smokeThreshold")){     
     Serial.printf("Stream 2 begin error, %s\n\n", fbdo_s1.errorReason().c_str());
   }
-
+  
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-  pinMode(22, INPUT_PULLUP);
 
   for(int i = 0; i < 4; i++){
     pinMode(buzzerPin[i], OUTPUT);
@@ -100,16 +108,18 @@ void loop(){
     }
   }
 
-  //serialDebug();
+  serialDebug();
 }
 
 void serialDebug(){
+  if(millis() - previousWebSerialMillis >= webSerialInterval){
+    previousWebSerialMillis = millis();
     Serial.print(sensorVal1);     Serial.println(" %");
     Serial.print(sensorVal2);     Serial.println(" %");
     Serial.print(sensorVal3);     Serial.println(" %");
     Serial.print(sensorVal4);     Serial.println(" %");
-    Serial.println("<-->");
-    delay(500);
+  }
+
 }
 
 int convertToPercent(int analogValue){
@@ -123,25 +133,25 @@ void sendSensorData() {
   sensorVal4 = convertToPercent(analogRead(sensorPin[3]));
 
   if(Firebase.RTDB.setInt(&fbdo, "sensorValue/sensor1", sensorVal1)){
-    Serial.println("Sensor Value A: " + String(sensorVal1));
+    Serial.println("Sensor Value A: " + String(sensorVal1) + "%");
   }else{
     Serial.println("Failed to save sensor value A: " + fbdo.errorReason());
   }
 
   if(Firebase.RTDB.setInt(&fbdo, "sensorValue/sensor2", sensorVal2)){
-    Serial.println("Sensor Value B: " + String(sensorVal2));
+    Serial.println("Sensor Value B: " + String(sensorVal2) + "%");
   }else{
     Serial.println("Failed to save sensor value B: " + fbdo.errorReason());
   }
 
   if(Firebase.RTDB.setInt(&fbdo, "sensorValue/sensor3", sensorVal3)){
-    Serial.println("Sensor Value C: " + String(sensorVal3));
+    Serial.println("Sensor Value C: " + String(sensorVal3) + "%");
   }else{
     Serial.println("Failed to save sensor value C: " + fbdo.errorReason());
   }
 
   if(Firebase.RTDB.setInt(&fbdo, "sensorValue/sensor4", sensorVal4)){
-    Serial.println("Sensor Value D: " + String(sensorVal4));
+    Serial.println("Sensor Value D: " + String(sensorVal4) + "%");
   }else{
     Serial.println("Failed to save sensor value D: " + fbdo.errorReason());
   }
@@ -171,58 +181,32 @@ void handleFirebaseStreams() {
   if (fbdo_s2.streamAvailable()) {
     if (fbdo_s2.dataType() == "int") {
       smokeThreshold = fbdo_s2.intData();
-      Serial.println("Smoke threshold changed: " + String(smokeThreshold));
+      Serial.println("Smoke threshold changed to: " + String(smokeThreshold) + "%");
     }
   }
 }
 
 void buzzerTest(){
   unsigned long currentMillis = millis();
-
-  if(currentMillis - previousMillis >= interval){
+  if(currentMillis - previousMillis >= interval && isInitBuzzerTest){
     previousMillis = currentMillis;
 
-      Serial.print("Buzzer state: ");
-      Serial.println(buzzerState);
+    Serial.print("Buzzer state: ");
+    Serial.println(buzzerState);
 
-      switch(buzzerState){
-        case 0:
-          digitalWrite(buzzerPin[0], HIGH);
-          digitalWrite(buzzerPin[1], LOW);
-          digitalWrite(buzzerPin[2], LOW);
-          digitalWrite(buzzerPin[3], LOW);
-          break;
-        case 1:
-          digitalWrite(buzzerPin[0], LOW);
-          digitalWrite(buzzerPin[1], HIGH);
-          digitalWrite(buzzerPin[2], LOW);
-          digitalWrite(buzzerPin[3], LOW);
-          break;
-        case 2:
-          digitalWrite(buzzerPin[0], LOW);
-          digitalWrite(buzzerPin[1], LOW);
-          digitalWrite(buzzerPin[2], HIGH);
-          digitalWrite(buzzerPin[3], LOW);
-          break;
-        case 3:
-          digitalWrite(buzzerPin[0], LOW);
-          digitalWrite(buzzerPin[1], LOW);
-          digitalWrite(buzzerPin[2], LOW);
-          digitalWrite(buzzerPin[3], HIGH);
-          break;
-        case 4:
-          digitalWrite(buzzerPin[0], HIGH);
-          digitalWrite(buzzerPin[1], HIGH);
-          digitalWrite(buzzerPin[2], HIGH);
-          digitalWrite(buzzerPin[3], HIGH);
-          break;
-        case 5:
-          digitalWrite(buzzerPin[0], LOW);
-          digitalWrite(buzzerPin[1], LOW);
-          digitalWrite(buzzerPin[2], LOW);
-          digitalWrite(buzzerPin[3], LOW);
-          break;
-        }
-        buzzerState = (buzzerState + 1) % 6;
+    bool states[6][4] = {
+      {HIGH, LOW, LOW, LOW},
+      {LOW, HIGH, LOW, LOW},
+      {LOW, LOW, HIGH, LOW},
+      {LOW, LOW, LOW, HIGH},
+      {HIGH, HIGH, HIGH, HIGH},
+      {LOW, LOW, LOW, LOW}
+    };
+
+    for(int i = 0; i < 4; i++){
+      digitalWrite(buzzerPin[i], states[buzzerState][i]);
     }
+
+    buzzerState = (buzzerState + 1) % 6;
+  }
 }
